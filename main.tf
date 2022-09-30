@@ -61,6 +61,22 @@ resource "google_kms_crypto_key_iam_member" "service_identity_compute_iam_crypto
   member        = "serviceAccount:service-${data.google_project.project.number}@compute-system.iam.gserviceaccount.com"
 }
 
+# Roles for Notebook Service Agents
+# Dependency: The Notebook Service Agent must have access to the CMEK and the network used during instance creation.
+
+resource "google_project_service_identity" "notebooks_identity" {
+  provider = google-beta
+  project  = data.google_project.project.project_id
+  service  = "notebooks.googleapis.com"
+}
+
+# Adding roles to Notebook Service Agents service account
+resource "google_kms_crypto_key_iam_member" "service_identity_iam_crypto_key" {
+  crypto_key_id = google_kms_crypto_key.secrets.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+  member        = "serviceAccount:${google_project_service_identity.notebooks_identity.email}"
+}
+
 # creation of notebooks_instance
 resource "google_notebooks_instance" "instance" {
   project         = data.google_project.project.project_id
@@ -90,27 +106,15 @@ resource "google_project_iam_member" "notebooks_runner" {
   member  = "serviceAccount:${google_service_account.custom_sa.email}"
 }
 
-# Roles for Notebook Service Agents
-# Dependency: The Notebook Service Agent must have access to the CMEK and the network used during instance creation.
-
-resource "google_project_service_identity" "notebooks_identity" {
-  provider = google-beta
-  project  = data.google_project.project.project_id
-  service  = "notebooks.googleapis.com"
-}
-
-# Adding roles to Notebook Service Agents service account
-resource "google_kms_crypto_key_iam_member" "service_identity_iam_crypto_key" {
-  crypto_key_id = google_kms_crypto_key.secrets.id
-  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:${google_project_service_identity.notebooks_identity.email}"
-}
-
 # Creating google_notebooks_runtime resource
 resource "google_notebooks_runtime" "managed" {
   project  = data.google_project.project.project_id
   name     = "notebooks-runtime-04"
   location = "us-central1"
+  depends_on = [
+    google_kms_crypto_key_iam_member.service_identity_iam_crypto_key,
+    google_notebooks_instance.instance
+  ]
   #   access_config {
   #     access_type   = "SERVICE_ACCOUNT"
   #     runtime_owner = google_service_account.custom_sa.email
