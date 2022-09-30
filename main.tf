@@ -129,9 +129,9 @@ resource "google_notebooks_runtime" "managed" {
           disk_type    = "PD_STANDARD"
         }
       }
-        encryption_config {
-          kms_key = google_kms_crypto_key.secrets.id
-        }
+      encryption_config {
+        kms_key = google_kms_crypto_key.secrets.id
+      }
     }
   }
 }  
